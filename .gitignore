@@ -1,0 +1,23 @@
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Raw official data and downloaded attachments
+data/raw/**
+!data/raw/.gitkeep
+data/downloads/**
+!data/downloads/.gitkeep
+*.csv
+*.csv.zip
+*.parquet
+*.duckdb
+*.db
+
+# Local scratch and logs
+tmp/
+logs/
+*.log
