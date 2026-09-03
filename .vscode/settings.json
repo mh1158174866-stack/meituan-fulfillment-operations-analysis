@@ -1,0 +1,13 @@
+{
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "data/raw/Meituan-INFORMS-TSL-Research-Challenge/.git": true
+  },
+  "search.exclude": {
+    "data/raw/**": true,
+    "data/interim/**": true,
+    "data/processed/**": true
+  },
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "terminal.integrated.cwd": "${workspaceFolder}"
+}
