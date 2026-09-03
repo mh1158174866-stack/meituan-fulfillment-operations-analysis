@@ -58,6 +58,14 @@ python3 -m venv .venv
 - `reports/DATA_DICTIONARY.md`：字段、类型、粒度、候选键和使用边界；
 - `reports/DATA_QUALITY_REPORT.md`：行数、重复、缺失、0 时间、接受/拒绝、订单/运单粒度、复合键和关联覆盖率。
 
+## 时间与业务语义验收
+
+```bash
+.venv/bin/python scripts/audit_time_semantics.py
+```
+
+该命令按 Asia/Shanghai 解释 Unix 秒，生成 `reports/TIME_SEMANTICS_REPORT.md`，量化运营归属日、预订单日期提前、事件顺序、已接单未完成记录、`wave_start_time` 索引问题和 dispatch checkpoint 语义。本阶段不据此构建正式事实表。
+
 ## 数据署名
 
 本项目使用美团提供的数据。若公开发表基于该数据集的研究，应按官方要求注明：
