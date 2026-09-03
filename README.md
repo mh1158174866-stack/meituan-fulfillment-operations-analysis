@@ -47,6 +47,17 @@ python3 -m venv .venv
 
 脚本会生成只含来源、文件规模和哈希的 `reports/DOWNLOAD_MANIFEST.md`。需要重新下载时使用 `--force`。
 
+## 结构、粒度与关联验收
+
+```bash
+.venv/bin/python scripts/audit_data.py
+```
+
+该命令全量读取四表并生成：
+
+- `reports/DATA_DICTIONARY.md`：字段、类型、粒度、候选键和使用边界；
+- `reports/DATA_QUALITY_REPORT.md`：行数、重复、缺失、0 时间、接受/拒绝、订单/运单粒度、复合键和关联覆盖率。
+
 ## 数据署名
 
 本项目使用美团提供的数据。若公开发表基于该数据集的研究，应按官方要求注明：
