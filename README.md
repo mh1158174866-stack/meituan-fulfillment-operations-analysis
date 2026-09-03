@@ -35,7 +35,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-后续步骤会提供下载、审计、隐私扫描和一键验收命令。数据目录规则见 [data/README.md](data/README.md)，许可与隐私边界见 [docs/LICENSE_AND_DATA_USE.md](docs/LICENSE_AND_DATA_USE.md) 和 [docs/PRIVACY.md](docs/PRIVACY.md)。
+数据目录规则见 [data/README.md](data/README.md)，许可与隐私边界见 [docs/LICENSE_AND_DATA_USE.md](docs/LICENSE_AND_DATA_USE.md) 和 [docs/PRIVACY.md](docs/PRIVACY.md)。
 
 ## 下载官方数据
 
@@ -65,6 +65,38 @@ python3 -m venv .venv
 ```
 
 该命令按 Asia/Shanghai 解释 Unix 秒，生成 `reports/TIME_SEMANTICS_REPORT.md`，量化运营归属日、预订单日期提前、事件顺序、已接单未完成记录、`wave_start_time` 索引问题和 dispatch checkpoint 语义。本阶段不据此构建正式事实表。
+
+## 一键完成第一阶段验收
+
+从已安装依赖的环境运行：
+
+```bash
+.venv/bin/python scripts/run_phase1.py
+```
+
+命令会依次执行下载/哈希校验、结构审计、时间语义审计和隐私扫描，然后第二次完整生成四份公开报告并比较 SHA-256。只有两次结果完全一致时，才生成 `reports/PHASE1_ACCEPTANCE.md`。
+
+需要重新从官方固定提交下载全部数据时：
+
+```bash
+.venv/bin/python scripts/run_phase1.py --force-download
+```
+
+也可单独运行隐私扫描：
+
+```bash
+.venv/bin/python scripts/privacy_scan.py --self-test
+```
+
+## 第一阶段交付物
+
+- 下载校验：[reports/DOWNLOAD_MANIFEST.md](reports/DOWNLOAD_MANIFEST.md)
+- 数据字典：[reports/DATA_DICTIONARY.md](reports/DATA_DICTIONARY.md)
+- 数据质量：[reports/DATA_QUALITY_REPORT.md](reports/DATA_QUALITY_REPORT.md)
+- 时间语义：[reports/TIME_SEMANTICS_REPORT.md](reports/TIME_SEMANTICS_REPORT.md)
+- 最终验收：[reports/PHASE1_ACCEPTANCE.md](reports/PHASE1_ACCEPTANCE.md)
+
+第二阶段仅从可审计事实层与指标口径开始；在这些内容验收前不启动经营异动归因、Tableau、预测或 Agent。
 
 ## 数据署名
 
