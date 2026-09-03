@@ -37,6 +37,16 @@ python3 -m venv .venv
 
 后续步骤会提供下载、审计、隐私扫描和一键验收命令。数据目录规则见 [data/README.md](data/README.md)，许可与隐私边界见 [docs/LICENSE_AND_DATA_USE.md](docs/LICENSE_AND_DATA_USE.md) 和 [docs/PRIVACY.md](docs/PRIVACY.md)。
 
+## 下载官方数据
+
+下载脚本固定到官方仓库提交 `1f9b4288cee5a78d1e5da007fc306bbaa662fc6d`，避免上游 `main` 后续变化破坏复现。
+
+```bash
+.venv/bin/python scripts/download_data.py
+```
+
+脚本会生成只含来源、文件规模和哈希的 `reports/DOWNLOAD_MANIFEST.md`。需要重新下载时使用 `--force`。
+
 ## 数据署名
 
 本项目使用美团提供的数据。若公开发表基于该数据集的研究，应按官方要求注明：
