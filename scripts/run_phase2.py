@@ -13,6 +13,7 @@ from phase2_common import (
     assert_source_contract,
     assert_step_b_contract,
     assert_step_c_contract,
+    assert_step_d_contract,
     connect,
     execute_sql_file,
 )
@@ -138,11 +139,119 @@ def write_step_c_report(passed: list[str], connection: object) -> None:
     )
 
 
+def write_metric_dictionary(connection: object) -> None:
+    rows = connection.execute(
+        "SELECT * FROM metrics.metric_catalog ORDER BY metric_name"
+    ).fetchall()
+    lines = [
+        "# 第二阶段指标字典",
+        "",
+        "本字典由可执行 `metrics.metric_catalog` 生成。后续 Python、报告和 Tableau 必须读取 `metrics.daily_fulfillment`、`metrics.overall_fulfillment` 或 `metrics.checkpoint_snapshot`，不得另写平行口径。",
+        "",
+    ]
+    labels = (
+        "业务问题",
+        "粒度",
+        "公式",
+        "分子",
+        "分母",
+        "单位",
+        "过滤条件",
+        "0/NULL处理",
+        "质量标记与适用边界",
+    )
+    for row in rows:
+        lines.extend([f"## `{row[0]}`", ""])
+        for label, value in zip(labels, row[1:]):
+            lines.append(f"- {label}：{value}。")
+        lines.append("")
+    (REPORT_DIR / "METRIC_DICTIONARY.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_step_d_reports(passed: list[str], connection: object) -> None:
+    row = connection.execute(
+        "SELECT order_count, waybill_attempt_count, waybill_acceptance_rate, "
+        "first_attempt_success_rate, avg_attempt_count, avg_redispatch_count, "
+        "completion_rate, avg_order_to_push_seconds, avg_push_to_first_dispatch_seconds, "
+        "avg_final_dispatch_to_accept_seconds, avg_accept_to_fetch_seconds, "
+        "avg_fetch_to_arrive_seconds, avg_end_to_end_seconds, strict_late_rate, "
+        "buffer_8m_late_rate, avg_pickup_delay_seconds, "
+        "avg_delivery_distance_coordinate_units, avg_wave_duration_seconds, "
+        "avg_orders_per_wave FROM metrics.overall_fulfillment"
+    ).fetchone()
+    checkpoint = connection.execute(
+        "SELECT min(pending_order_count), max(pending_order_count), "
+        "min(candidate_courier_count), max(candidate_courier_count), "
+        "min(pending_orders_per_candidate_courier), "
+        "max(pending_orders_per_candidate_courier), "
+        "min(candidate_couriers_per_pending_order), "
+        "max(candidate_couriers_per_pending_order) FROM metrics.checkpoint_snapshot"
+    ).fetchone()
+    lines = [
+        "# 第二阶段聚合指标对账报告",
+        "",
+        "以下数值只从 `metrics` schema 读取；均为全量聚合，不含按订单、骑手、商户、商圈或精确时间戳的明细。时长同时换算为分钟仅用于阅读，底层统一存秒。",
+        "",
+        "| 指标 | 聚合值 |",
+        "|---|---:|",
+        f"| 订单量 | {row[0]:,.0f} |",
+        f"| waybill 尝试量 | {row[1]:,.0f} |",
+        f"| waybill 接单率 | {row[2]:.6%} |",
+        f"| 首次尝试/首次派单成功率 | {row[3]:.6%} |",
+        f"| 平均尝试数 | {row[4]:.6f} 次/单 |",
+        f"| 平均重派次数 | {row[5]:.6f} 次/单 |",
+        f"| 完成率 | {row[6]:.6%} |",
+        f"| 下单至入池 | {row[7] / 60:.3f} 分钟 |",
+        f"| 入池至首次派单 | {row[8] / 60:.3f} 分钟 |",
+        f"| 最终派单至接单 | {row[9] / 60:.3f} 分钟 |",
+        f"| 接单至取餐 | {row[10] / 60:.3f} 分钟 |",
+        f"| 取餐至送达 | {row[11] / 60:.3f} 分钟 |",
+        f"| 全链路 | {row[12] / 60:.3f} 分钟 |",
+        f"| 严格超时率 | {row[13]:.6%} |",
+        f"| 8分钟缓冲超时率 | {row[14]:.6%} |",
+        f"| 平均取餐延迟 | {row[15] / 60:.3f} 分钟 |",
+        f"| 平均配送直线距离 | {row[16]:.3f} 匿名坐标单位 |",
+        f"| 平均波次时长 | {row[17] / 60:.3f} 分钟 |",
+        f"| 每波平均订单量/负载 | {row[18]:.6f} 订单/波 |",
+        "",
+        "## checkpoint 范围对账",
+        "",
+        f"24 个选定 checkpoint 的待派订单数范围 {checkpoint[0]:,.0f}–{checkpoint[1]:,.0f}，候选骑手数范围 {checkpoint[2]:,.0f}–{checkpoint[3]:,.0f}；订单/候选骑手比范围 {checkpoint[4]:.6f}–{checkpoint[5]:.6f}，候选骑手/订单比范围 {checkpoint[6]:.6f}–{checkpoint[7]:.6f}。该范围不能解释为全天逐事件分布。",
+        "",
+        "## 可追溯性",
+        "",
+        "指标分子、分母和合计字段保存在 `metrics.daily_fulfillment`；整体值由 `metrics.overall_fulfillment` 对日层分子分母再次汇总，不做日率简单平均。事实来源和公式完整保存在 `sql/30_metrics/30_metric_layer.sql`，指标元数据保存在 `sql/30_metrics/31_metric_catalog.sql`。",
+        "",
+        f"D 新增 {len(passed)} 项指标合同检查，全部通过。",
+        "",
+    ]
+    (REPORT_DIR / "METRIC_RECONCILIATION.md").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )
+    (REPORT_DIR / "PHASE2_STEP_D_ACCEPTANCE.md").write_text(
+        "\n".join(
+            [
+                "# 第二阶段 D：指标体系与聚合指标层验收",
+                "",
+                "状态：**通过**。",
+                "",
+                "- 25 个指标定义已写入可执行 `metrics.metric_catalog` 并生成公开指标字典。",
+                "- 日层、整体层和 checkpoint 层均由事实层 SQL 生成；整体比率按汇总分子/分母计算。",
+                "- 订单、waybill、完成分母、尝试恒等式、超时单调性、比率边界、时长非负和 checkpoint 比值共识已自动验证。",
+                f"- D 新增 {len(passed)} 项检查，A–D 累计 59 项合同检查全部通过。",
+                "- 配送距离仅使用匿名坐标欧氏单位，不解释为公里或路网距离；取餐延迟不作因果归责。",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--through", choices=("A", "B", "C", "D", "E"), default="A")
     args = parser.parse_args()
-    if args.through not in {"A", "B", "C"}:
+    if args.through not in {"A", "B", "C", "D"}:
         raise SystemExit(f"step {args.through} build is added with that step")
 
     connection = connect(reset=True)
@@ -151,18 +260,25 @@ def main() -> int:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     write_step_a_report(passed)
     total_passed = len(passed)
-    if args.through in {"B", "C"}:
+    if args.through in {"B", "C", "D"}:
         execute_sql_file(connection, "10_staging/10_waybill_attempt.sql")
         execute_sql_file(connection, "20_facts/20_order_fulfillment.sql")
         step_b_passed = assert_step_b_contract(connection)
         write_step_b_report(step_b_passed, connection)
         total_passed += len(step_b_passed)
-    if args.through == "C":
+    if args.through in {"C", "D"}:
         execute_sql_file(connection, "10_staging/11_wave_checkpoint.sql")
         execute_sql_file(connection, "20_facts/21_wave_checkpoint.sql")
         step_c_passed = assert_step_c_contract(connection)
         write_step_c_report(step_c_passed, connection)
         total_passed += len(step_c_passed)
+    if args.through == "D":
+        execute_sql_file(connection, "30_metrics/30_metric_layer.sql")
+        execute_sql_file(connection, "30_metrics/31_metric_catalog.sql")
+        step_d_passed = assert_step_d_contract(connection)
+        write_metric_dictionary(connection)
+        write_step_d_reports(step_d_passed, connection)
+        total_passed += len(step_d_passed)
     connection.close()
     print(f"built ignored local database: {DATABASE_PATH.relative_to(DATABASE_PATH.parents[2])}")
     print(f"phase 2 through step {args.through} passed: {total_passed} checks")

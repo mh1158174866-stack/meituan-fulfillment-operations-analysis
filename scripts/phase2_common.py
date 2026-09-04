@@ -240,3 +240,100 @@ def assert_step_c_contract(connection: duckdb.DuckDBPyConnection) -> list[str]:
             raise AssertionError(f"{name}: expected {expected}, got {actual}")
         passed.append(name)
     return passed
+
+
+def assert_step_d_contract(connection: duckdb.DuckDBPyConnection) -> list[str]:
+    checks = {
+        "daily metric date rows": ("SELECT count(*) FROM metrics.daily_fulfillment", 8),
+        "daily metric date uniqueness": (
+            "SELECT count(*) - count(DISTINCT dt) FROM metrics.daily_fulfillment",
+            0,
+        ),
+        "metric catalog coverage": ("SELECT count(*) FROM metrics.metric_catalog", 25),
+        "metric catalog unique names": (
+            "SELECT count(*) - count(DISTINCT metric_name) FROM metrics.metric_catalog",
+            0,
+        ),
+        "order metric conservation": (
+            "SELECT sum(order_count) FROM metrics.daily_fulfillment",
+            568_546,
+        ),
+        "waybill metric conservation": (
+            "SELECT sum(waybill_attempt_count) FROM metrics.daily_fulfillment",
+            654_343,
+        ),
+        "accepted waybill metric conservation": (
+            "SELECT sum(accepted_waybill_count) FROM metrics.daily_fulfillment",
+            568_546,
+        ),
+        "first success numerator": (
+            "SELECT sum(first_attempt_success_order_count) FROM metrics.daily_fulfillment",
+            510_776,
+        ),
+        "first attempt and first dispatch identity": (
+            "SELECT count(*) FROM metrics.daily_fulfillment "
+            "WHERE first_attempt_success_rate <> first_dispatch_success_rate",
+            0,
+        ),
+        "attempt identity": (
+            "SELECT attempt_count_sum - order_count - redispatch_count_sum "
+            "FROM metrics.overall_fulfillment",
+            0,
+        ),
+        "completion numerator": (
+            "SELECT completed_order_count FROM metrics.overall_fulfillment",
+            568_545,
+        ),
+        "completion duration denominator": (
+            "SELECT end_to_end_eligible_count FROM metrics.overall_fulfillment",
+            568_545,
+        ),
+        "strict versus buffer late monotonicity": (
+            "SELECT count(*) FROM metrics.daily_fulfillment "
+            "WHERE buffer_8m_late_order_count > strict_late_order_count",
+            0,
+        ),
+        "rate bounds": (
+            "SELECT count(*) FROM metrics.daily_fulfillment WHERE "
+            "waybill_acceptance_rate NOT BETWEEN 0 AND 1 OR "
+            "first_attempt_success_rate NOT BETWEEN 0 AND 1 OR "
+            "completion_rate NOT BETWEEN 0 AND 1 OR "
+            "strict_late_rate NOT BETWEEN 0 AND 1 OR "
+            "buffer_8m_late_rate NOT BETWEEN 0 AND 1",
+            0,
+        ),
+        "duration metric nonnegative where required": (
+            "SELECT count(*) FROM metrics.daily_fulfillment WHERE "
+            "avg_order_to_push_seconds < 0 OR avg_push_to_first_dispatch_seconds < 0 "
+            "OR avg_first_dispatch_to_accept_seconds < 0 "
+            "OR avg_final_dispatch_to_accept_seconds < 0 "
+            "OR avg_accept_to_fetch_seconds < 0 OR avg_fetch_to_arrive_seconds < 0 "
+            "OR avg_end_to_end_seconds < 0 OR avg_wave_duration_seconds < 0",
+            0,
+        ),
+        "checkpoint metric rows": ("SELECT count(*) FROM metrics.checkpoint_snapshot", 24),
+        "checkpoint metric key uniqueness": (
+            "SELECT count(*) - count(DISTINCT (dt, dispatch_time)) "
+            "FROM metrics.checkpoint_snapshot",
+            0,
+        ),
+        "checkpoint ratio identity": (
+            "SELECT count(*) FROM metrics.checkpoint_snapshot WHERE "
+            "abs(pending_orders_per_candidate_courier "
+            "- pending_order_count::DOUBLE / candidate_courier_count) > 1e-12",
+            0,
+        ),
+        "checkpoint rider-order ratio identity": (
+            "SELECT count(*) FROM metrics.checkpoint_snapshot WHERE "
+            "abs(candidate_couriers_per_pending_order "
+            "- candidate_courier_count::DOUBLE / pending_order_count) > 1e-12",
+            0,
+        ),
+    }
+    passed: list[str] = []
+    for name, (query, expected) in checks.items():
+        actual = scalar(connection, query)
+        if actual != expected:
+            raise AssertionError(f"{name}: expected {expected}, got {actual}")
+        passed.append(name)
+    return passed

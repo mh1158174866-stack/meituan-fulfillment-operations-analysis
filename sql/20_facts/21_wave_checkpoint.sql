@@ -104,6 +104,8 @@ SELECT
     r.parsed_onhand_count,
     o.pending_order_count::DOUBLE / nullif(r.candidate_courier_count, 0)
         AS pending_orders_per_candidate_courier,
+    r.candidate_courier_count::DOUBLE / nullif(o.pending_order_count, 0)
+        AS candidate_couriers_per_pending_order,
     (o.pending_order_count IS NULL) AS missing_order_snapshot,
     (r.candidate_courier_count IS NULL) AS missing_rider_snapshot,
     coalesce(r.has_onhand_parse_error, false) AS has_onhand_parse_error,
