@@ -6,6 +6,7 @@
 
 - `data/downloads/`：官方 ZIP 或临时下载文件，全部被 Git 忽略；
 - `data/raw/`：解压后的四张官方 CSV，全部被 Git 忽略。
+- `data/local/`：第二阶段本地 DuckDB 与可能的临时明细，整个目录被 Git 忽略。
 
 两个目录中的 `.gitkeep` 只是保留目录结构。不要强制添加被忽略的数据文件。
 
