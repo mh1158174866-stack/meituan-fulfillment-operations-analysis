@@ -66,3 +66,82 @@ def assert_source_contract(connection: duckdb.DuckDBPyConnection) -> list[str]:
         raise AssertionError("timezone contract changed")
     passed.append("Asia/Shanghai timezone")
     return passed
+
+
+def assert_step_b_contract(connection: duckdb.DuckDBPyConnection) -> list[str]:
+    checks = {
+        "waybill fact row conservation": (
+            "SELECT count(*) FROM fact.fact_waybill_attempt",
+            654_343,
+        ),
+        "order fact row conservation": (
+            "SELECT count(*) FROM fact.fact_order_fulfillment",
+            568_546,
+        ),
+        "waybill key uniqueness": (
+            "SELECT count(*) - count(DISTINCT waybill_id) FROM fact.fact_waybill_attempt",
+            0,
+        ),
+        "order key uniqueness": (
+            "SELECT count(*) - count(DISTINCT order_id) FROM fact.fact_order_fulfillment",
+            0,
+        ),
+        "accepted attempt count": (
+            "SELECT count(*) FROM fact.fact_waybill_attempt WHERE is_courier_grabbed = 1",
+            568_546,
+        ),
+        "rejected attempt count": (
+            "SELECT count(*) FROM fact.fact_waybill_attempt WHERE is_courier_grabbed = 0",
+            85_797,
+        ),
+        "one accepted attempt per order": (
+            "SELECT count(*) FROM (SELECT order_id FROM fact.fact_waybill_attempt "
+            "GROUP BY order_id HAVING count(*) FILTER (WHERE is_courier_grabbed = 1) <> 1)",
+            0,
+        ),
+        "accepted attempt is final sequence": (
+            "SELECT count(*) FROM fact.fact_waybill_attempt "
+            "WHERE is_courier_grabbed = 1 AND NOT is_final_accepted_attempt",
+            0,
+        ),
+        "attempt rollup conservation": (
+            "SELECT sum(attempt_count) FROM fact.fact_order_fulfillment",
+            654_343,
+        ),
+        "rejection rollup conservation": (
+            "SELECT sum(rejection_count) FROM fact.fact_order_fulfillment",
+            85_797,
+        ),
+        "cross-waybill inconsistency flags": (
+            "SELECT count(*) FROM fact.fact_order_fulfillment "
+            "WHERE has_cross_waybill_attribute_inconsistency",
+            61,
+        ),
+        "incomplete accepted flag": (
+            "SELECT count(*) FROM fact.fact_order_fulfillment WHERE is_incomplete_accepted",
+            1,
+        ),
+        "event order violations": (
+            "SELECT count(*) FROM fact.fact_order_fulfillment WHERE has_event_order_error",
+            0,
+        ),
+        "negative core durations": (
+            "SELECT count(*) FROM fact.fact_order_fulfillment WHERE "
+            "order_to_push_seconds < 0 OR push_to_first_dispatch_seconds < 0 "
+            "OR first_dispatch_to_accept_seconds < 0 OR accept_to_fetch_seconds < 0 "
+            "OR fetch_to_arrive_seconds < 0 OR end_to_end_seconds < 0",
+            0,
+        ),
+        "completed-duration denominator excludes incomplete": (
+            "SELECT count(*) FROM fact.fact_order_fulfillment "
+            "WHERE NOT is_completed AND (fetch_to_arrive_seconds IS NOT NULL OR end_to_end_seconds IS NOT NULL)",
+            0,
+        ),
+    }
+    passed: list[str] = []
+    for name, (query, expected) in checks.items():
+        actual = scalar(connection, query)
+        if actual != expected:
+            raise AssertionError(f"{name}: expected {expected}, got {actual}")
+        passed.append(name)
+    return passed

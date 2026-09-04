@@ -11,6 +11,7 @@ from phase2_common import (
     REPORT_DIR,
     SOURCE_EXPECTATIONS,
     assert_source_contract,
+    assert_step_b_contract,
     connect,
     execute_sql_file,
 )
@@ -55,21 +56,69 @@ def write_step_a_report(passed: list[str]) -> None:
     )
 
 
+def write_step_b_report(passed: list[str], connection: object) -> None:
+    attempt_distribution = connection.execute(
+        "SELECT attempt_count, count(*) FROM fact.fact_order_fulfillment "
+        "GROUP BY attempt_count ORDER BY attempt_count"
+    ).fetchall()
+    lines = [
+        "# 第二阶段 B：运单尝试与订单履约事实验收",
+        "",
+        "状态：**通过**。以下结果由本地事实表聚合生成，不含标识符、坐标或逐单时间线。",
+        "",
+        "## 守恒与质量结果",
+        "",
+        "- `fact_waybill_attempt`：654,343 行，一行一个 waybill；接受 568,546，拒绝 85,797。",
+        "- `fact_order_fulfillment`：568,546 行，一行一个 order；所有订单恰有一次最终接受。",
+        "- 跨 waybill 的日期/预订/下单时间不一致订单：61；订单属性取最终已接受 waybill 并保留标记。",
+        "- 已接受但未完成：1；保留 `is_incomplete_accepted`，完成时长保持 NULL。",
+        "- 事件顺序异常：0；核心持续时间负值：0。",
+        "",
+        "## 尝试次数分布",
+        "",
+        "| 尝试数 | 订单数 |",
+        "|---:|---:|",
+    ]
+    for attempts, orders in attempt_distribution:
+        lines.append(f"| {attempts:,} | {orders:,} |")
+    lines.extend(
+        [
+            "",
+            "尝试顺序按非 0 `dispatch_time` 升序排列，源文件行索引仅在同一派单秒内作确定性破同值；0 时间排在末尾。原始行不删除、不填补。",
+            "",
+            "## 自动检查",
+            "",
+            f"B 新增 {len(passed)} 项事实合同检查，全部通过；覆盖唯一性、行数守恒、接受/拒绝、关联、尝试汇总、61 个冲突标记、1 个未完成标记、时间顺序与非负持续时间。",
+            "",
+        ]
+    )
+    (REPORT_DIR / "PHASE2_STEP_B_ACCEPTANCE.md").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--through", choices=("A", "B", "C", "D", "E"), default="A")
     args = parser.parse_args()
-    if args.through != "A":
+    if args.through not in {"A", "B"}:
         raise SystemExit(f"step {args.through} build is added with that step")
 
     connection = connect(reset=True)
     execute_sql_file(connection, "00_sources/00_raw_tables.sql")
     passed = assert_source_contract(connection)
-    connection.close()
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     write_step_a_report(passed)
+    total_passed = len(passed)
+    if args.through == "B":
+        execute_sql_file(connection, "10_staging/10_waybill_attempt.sql")
+        execute_sql_file(connection, "20_facts/20_order_fulfillment.sql")
+        step_b_passed = assert_step_b_contract(connection)
+        write_step_b_report(step_b_passed, connection)
+        total_passed += len(step_b_passed)
+    connection.close()
     print(f"built ignored local database: {DATABASE_PATH.relative_to(DATABASE_PATH.parents[2])}")
-    print(f"phase 2 step A passed: {len(passed)} checks")
+    print(f"phase 2 through step {args.through} passed: {total_passed} checks")
     return 0
 
 
