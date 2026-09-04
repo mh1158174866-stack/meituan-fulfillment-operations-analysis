@@ -145,3 +145,98 @@ def assert_step_b_contract(connection: duckdb.DuckDBPyConnection) -> list[str]:
             raise AssertionError(f"{name}: expected {expected}, got {actual}")
         passed.append(name)
     return passed
+
+
+def assert_step_c_contract(connection: duckdb.DuckDBPyConnection) -> list[str]:
+    checks = {
+        "wave fact row conservation": (
+            "SELECT count(*) FROM fact.fact_courier_wave",
+            206_748,
+        ),
+        "wave composite key uniqueness": (
+            "SELECT count(*) - count(DISTINCT (dt, courier_id, wave_id)) "
+            "FROM fact.fact_courier_wave",
+            0,
+        ),
+        "wave membership conservation": (
+            "SELECT sum(member_count) FROM fact.fact_courier_wave",
+            568_545,
+        ),
+        "wave member parse coverage": (
+            "SELECT count(*) FROM fact.fact_courier_wave WHERE has_member_parse_error",
+            0,
+        ),
+        "wave member relationship coverage": (
+            "SELECT count(*) FROM fact.fact_courier_wave WHERE has_member_coverage_error",
+            0,
+        ),
+        "wave reconstructed start coverage": (
+            "SELECT count(*) FROM fact.fact_courier_wave "
+            "WHERE reconstructed_wave_start_time IS NULL",
+            0,
+        ),
+        "wave official start mismatch flags": (
+            "SELECT count(*) FROM fact.fact_courier_wave WHERE has_start_time_mismatch",
+            65_904,
+        ),
+        "wave end alignment": (
+            "SELECT count(*) FROM fact.fact_courier_wave WHERE has_end_time_mismatch",
+            0,
+        ),
+        "wave duration nonnegative": (
+            "SELECT count(*) FROM fact.fact_courier_wave WHERE wave_duration_seconds < 0",
+            0,
+        ),
+        "checkpoint count": (
+            "SELECT count(*) FROM fact.fact_dispatch_checkpoint",
+            24,
+        ),
+        "checkpoint date count": (
+            "SELECT count(DISTINCT dt) FROM fact.fact_dispatch_checkpoint",
+            8,
+        ),
+        "checkpoint composite key uniqueness": (
+            "SELECT count(*) - count(DISTINCT (dt, dispatch_time)) "
+            "FROM fact.fact_dispatch_checkpoint",
+            0,
+        ),
+        "checkpoint both sides aligned": (
+            "SELECT count(*) FROM fact.fact_dispatch_checkpoint "
+            "WHERE missing_order_snapshot OR missing_rider_snapshot",
+            0,
+        ),
+        "checkpoint pending order conservation": (
+            "SELECT sum(pending_order_count) FROM fact.fact_dispatch_checkpoint",
+            15_921,
+        ),
+        "checkpoint candidate courier conservation": (
+            "SELECT sum(candidate_courier_count) FROM fact.fact_dispatch_checkpoint",
+            62_044,
+        ),
+        "checkpoint order relationship coverage": (
+            "SELECT count(*) FROM fact.fact_dispatch_checkpoint_order "
+            "WHERE NOT has_fulfillment_match",
+            0,
+        ),
+        "checkpoint rider key uniqueness": (
+            "SELECT count(*) - count(DISTINCT (dt, dispatch_time, courier_id)) "
+            "FROM fact.fact_dispatch_checkpoint_rider",
+            0,
+        ),
+        "checkpoint order key uniqueness": (
+            "SELECT count(*) - count(DISTINCT (dt, dispatch_time, order_id)) "
+            "FROM fact.fact_dispatch_checkpoint_order",
+            0,
+        ),
+        "onhand member parse coverage": (
+            "SELECT count(*) FROM stg.checkpoint_rider_onhand WHERE has_parse_error",
+            0,
+        ),
+    }
+    passed: list[str] = []
+    for name, (query, expected) in checks.items():
+        actual = scalar(connection, query)
+        if actual != expected:
+            raise AssertionError(f"{name}: expected {expected}, got {actual}")
+        passed.append(name)
+    return passed

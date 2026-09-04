@@ -12,6 +12,7 @@ from phase2_common import (
     SOURCE_EXPECTATIONS,
     assert_source_contract,
     assert_step_b_contract,
+    assert_step_c_contract,
     connect,
     execute_sql_file,
 )
@@ -97,11 +98,51 @@ def write_step_b_report(passed: list[str], connection: object) -> None:
     )
 
 
+def write_step_c_report(passed: list[str], connection: object) -> None:
+    wave_min, wave_max = connection.execute(
+        "SELECT min(member_count), max(member_count) FROM fact.fact_courier_wave"
+    ).fetchone()
+    order_min, order_max, rider_min, rider_max = connection.execute(
+        "SELECT min(pending_order_count), max(pending_order_count), "
+        "min(candidate_courier_count), max(candidate_courier_count) "
+        "FROM fact.fact_dispatch_checkpoint"
+    ).fetchone()
+    lines = [
+        "# 第二阶段 C：骑手波次与派单 checkpoint 事实验收",
+        "",
+        "状态：**通过**。以下只公开聚合规模、覆盖和质量标记，不公开骑手、订单、波次或在手任务明细。",
+        "",
+        "## 波次事实",
+        "",
+        "- `fact_courier_wave`：206,748 行，`dt + courier_id + wave_id` 复合键唯一。",
+        "- 波次成员 568,545 个，解析与订单关联覆盖均为 100%。",
+        "- 官方开始时间与成员最早有效接单时间不一致 65,904 波；分析用开始时间全部采用重构值。",
+        "- 官方结束时间与成员最大送达时间全部一致；基于重构开始时间的负持续时间为 0。",
+        f"- 每波成员数范围：{wave_min:,}–{wave_max:,}。",
+        "",
+        "## checkpoint 事实",
+        "",
+        "- 24 个 `dt + dispatch_time` checkpoint，覆盖 8 个运营归属日；订单侧与骑手侧全部对齐。",
+        f"- 每 checkpoint 待派订单 {order_min:,}–{order_max:,}，候选骑手 {rider_min:,}–{rider_max:,}。",
+        "- 待派订单总成员 15,921，候选骑手总成员 62,044；候选集合的复合键均唯一。",
+        "- `courier_waybills` 拆分成员可同时匹配 waybill/order 标识域，物理字段名与文字定义不能消除歧义；事实层统一保留 `courier_waybills_definition_uncertain=true`。",
+        "- checkpoint 仅为 24 个选定时点快照，`is_selected_checkpoint_not_event_log=true`；不得外推为全天逐事件派单日志。",
+        "",
+        "## 自动检查",
+        "",
+        f"C 新增 {len(passed)} 项合同检查，全部通过；覆盖波次复合键、成员守恒/关联、开始/结束时间、持续时间、checkpoint 对齐、成员计数和集合键唯一性。",
+        "",
+    ]
+    (REPORT_DIR / "PHASE2_STEP_C_ACCEPTANCE.md").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--through", choices=("A", "B", "C", "D", "E"), default="A")
     args = parser.parse_args()
-    if args.through not in {"A", "B"}:
+    if args.through not in {"A", "B", "C"}:
         raise SystemExit(f"step {args.through} build is added with that step")
 
     connection = connect(reset=True)
@@ -110,12 +151,18 @@ def main() -> int:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     write_step_a_report(passed)
     total_passed = len(passed)
-    if args.through == "B":
+    if args.through in {"B", "C"}:
         execute_sql_file(connection, "10_staging/10_waybill_attempt.sql")
         execute_sql_file(connection, "20_facts/20_order_fulfillment.sql")
         step_b_passed = assert_step_b_contract(connection)
         write_step_b_report(step_b_passed, connection)
         total_passed += len(step_b_passed)
+    if args.through == "C":
+        execute_sql_file(connection, "10_staging/11_wave_checkpoint.sql")
+        execute_sql_file(connection, "20_facts/21_wave_checkpoint.sql")
+        step_c_passed = assert_step_c_contract(connection)
+        write_step_c_report(step_c_passed, connection)
+        total_passed += len(step_c_passed)
     connection.close()
     print(f"built ignored local database: {DATABASE_PATH.relative_to(DATABASE_PATH.parents[2])}")
     print(f"phase 2 through step {args.through} passed: {total_passed} checks")
