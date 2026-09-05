@@ -13,6 +13,7 @@ WITH wave_rollup AS (
     LEFT JOIN fact.fact_order_fulfillment AS o
       ON m.order_id = o.order_id
      AND m.courier_id = o.accepted_courier_id
+     AND m.dt = o.dt
     GROUP BY m.dt, m.courier_id, m.wave_id
 )
 SELECT
@@ -47,7 +48,9 @@ SELECT
     c.order_id,
     (o.order_id IS NOT NULL) AS has_fulfillment_match
 FROM stg.checkpoint_order AS c
-LEFT JOIN fact.fact_order_fulfillment AS o USING (order_id);
+LEFT JOIN fact.fact_order_fulfillment AS o
+  ON c.order_id = o.order_id
+ AND c.dt = o.dt;
 
 CREATE OR REPLACE TABLE fact.fact_dispatch_checkpoint_rider AS
 SELECT

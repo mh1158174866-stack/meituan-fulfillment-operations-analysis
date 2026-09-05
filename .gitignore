@@ -17,6 +17,24 @@ data/local/**
 *.parquet
 *.duckdb
 *.db
+*.sqlite
+*.sqlite3
+*.jsonl
+*.ndjson
+*.tsv
+*.arrow
+*.feather
+*.xlsx
+*.xls
+*.pkl
+*.npy
+*.npz
+*.gz
+*.tar
+*.7z
+*.duckdb-wal
+*.db-wal
+*.db-shm
 
 # Local scratch and logs
 tmp/

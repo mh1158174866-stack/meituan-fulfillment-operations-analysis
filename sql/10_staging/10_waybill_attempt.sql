@@ -31,7 +31,10 @@ SELECT
     to_timestamp(nullif(arrive_time, 0)) AS arrive_ts,
     to_timestamp(estimate_arrived_time) AS estimate_arrived_ts,
     to_timestamp(nullif(estimate_meal_prepare_time, 0)) AS estimate_meal_prepare_ts,
+    (dispatch_time = 0) AS has_missing_dispatch_time,
     (is_courier_grabbed = 1 AND arrive_time = 0) AS is_incomplete_accepted,
+    (is_courier_grabbed = 1 AND attempt_sequence = attempt_count)
+        AS is_final_accepted_attempt,
     (
         platform_order_time > order_push_time
         OR (dispatch_time > 0 AND order_push_time > dispatch_time)
@@ -56,7 +59,7 @@ SELECT
     attempt_sequence,
     attempt_count,
     is_courier_grabbed,
-    (is_courier_grabbed = 1 AND attempt_sequence = attempt_count) AS is_final_accepted_attempt,
+    is_final_accepted_attempt,
     is_weekend,
     is_prebook,
     platform_order_time,
@@ -75,6 +78,7 @@ SELECT
     arrive_ts,
     estimate_arrived_ts,
     estimate_meal_prepare_ts,
+    has_missing_dispatch_time,
     is_incomplete_accepted,
     has_event_order_error,
     has_dt_inconsistency,

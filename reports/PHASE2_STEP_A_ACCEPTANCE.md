@@ -21,7 +21,7 @@
 
 ## 自动检查
 
-共 6 项合同检查通过：`raw.waybill row count`、`raw.courier_wave row count`、`raw.dispatch_rider row count`、`raw.dispatch_waybill row count`、`fixed source commit`、`Asia/Shanghai timezone`。
+共 7 项合同检查通过：`raw.waybill row count`、`raw.courier_wave row count`、`raw.dispatch_rider row count`、`raw.dispatch_waybill row count`、`fixed source commit`、`Asia/Shanghai timezone`、`fixed raw input SHA-256`。
 
 ## 后续边界
 

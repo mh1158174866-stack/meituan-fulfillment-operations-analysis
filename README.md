@@ -1,6 +1,6 @@
 # 美团外卖履约经营分析
 
-本仓库用于构建“全链路监控与异动归因”项目。当前只完成第一阶段：数据与环境验收；不在本阶段输出经营结论、异动归因、看板、预测模型或 Agent。
+本仓库用于构建“全链路监控与异动归因”项目。第一阶段的数据与环境验收、第二阶段的 SQL 数据层与统一指标体系已经完成；尚未进入经营异动识别与归因、Tableau、经营报告、预测模型或 Agent。
 
 ## 第一阶段范围
 
@@ -96,7 +96,36 @@ python3 -m venv .venv
 - 时间语义：[reports/TIME_SEMANTICS_REPORT.md](reports/TIME_SEMANTICS_REPORT.md)
 - 最终验收：[reports/PHASE1_ACCEPTANCE.md](reports/PHASE1_ACCEPTANCE.md)
 
-第二阶段仅从可审计事实层与指标口径开始；在这些内容验收前不启动经营异动归因、Tableau、预测或 Agent。
+## 第二阶段范围与复现
+
+第二阶段在 Git 忽略的 `data/local/phase2.duckdb` 建立：
+
+- 一行一个 waybill 的尝试事实与一行一个 order 的履约事实；
+- `dt + courier_id + wave_id` 粒度的波次事实；
+- 24 个 `dt + dispatch_time` checkpoint 的订单/候选骑手集合事实与安全汇总；
+- 唯一的 `metrics` 指标层、25 项指标字典和聚合对账；
+- 结构、唯一性、守恒、关联、时间、指标恒等式、隐私和 Git 跟踪范围测试。
+
+一键完整重建和验收：
+
+```bash
+.venv/bin/python scripts/run_phase2.py --through E
+.venv/bin/python scripts/validate_phase2.py --step E
+```
+
+第二阶段文档与报告：
+
+- 数据合同：[docs/PHASE2_DATA_CONTRACT.md](docs/PHASE2_DATA_CONTRACT.md)
+- SQL 血缘：[docs/PHASE2_LINEAGE.md](docs/PHASE2_LINEAGE.md)
+- 质量标记：[docs/PHASE2_QUALITY_FLAGS.md](docs/PHASE2_QUALITY_FLAGS.md)
+- 指标字典：[reports/METRIC_DICTIONARY.md](reports/METRIC_DICTIONARY.md)
+- 聚合对账：[reports/METRIC_RECONCILIATION.md](reports/METRIC_RECONCILIATION.md)
+- 自动测试：[reports/PHASE2_TEST_REPORT.md](reports/PHASE2_TEST_REPORT.md)
+- 总验收：[reports/PHASE2_ACCEPTANCE.md](reports/PHASE2_ACCEPTANCE.md)
+
+## 第三阶段入口（未开始）
+
+第三阶段才可在已验收的 `metrics` 层上另行定义异动阈值、MAD 检测、贡献分解与案例筛选。本分支不包含这些实现，也不包含 Tableau、经营报告、预测模型或 Agent。
 
 ## 数据署名
 

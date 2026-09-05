@@ -5,6 +5,7 @@ WITH order_daily AS (
     SELECT
         dt,
         count(*) AS order_count,
+        count(*) FILTER (WHERE has_event_order_error) AS quality_excluded_order_count,
         count(*) FILTER (WHERE is_completed) AS completed_order_count,
         count(*) FILTER (WHERE attempt_count = 1) AS first_attempt_success_order_count,
         sum(attempt_count) AS attempt_count_sum,
@@ -14,20 +15,34 @@ WITH order_daily AS (
         count(*) FILTER (
             WHERE is_completed AND arrive_time > estimate_arrived_time + 8 * 60
         ) AS buffer_8m_late_order_count,
-        sum(order_to_push_seconds) AS order_to_push_seconds_sum,
-        count(order_to_push_seconds) AS order_to_push_eligible_count,
-        sum(push_to_first_dispatch_seconds) AS push_to_first_dispatch_seconds_sum,
-        count(push_to_first_dispatch_seconds) AS push_to_first_dispatch_eligible_count,
-        sum(first_dispatch_to_accept_seconds) AS first_dispatch_to_accept_seconds_sum,
-        count(first_dispatch_to_accept_seconds) AS first_dispatch_to_accept_eligible_count,
-        sum(final_dispatch_to_accept_seconds) AS final_dispatch_to_accept_seconds_sum,
-        count(final_dispatch_to_accept_seconds) AS final_dispatch_to_accept_eligible_count,
-        sum(accept_to_fetch_seconds) AS accept_to_fetch_seconds_sum,
-        count(accept_to_fetch_seconds) AS accept_to_fetch_eligible_count,
-        sum(fetch_to_arrive_seconds) AS fetch_to_arrive_seconds_sum,
-        count(fetch_to_arrive_seconds) AS fetch_to_arrive_eligible_count,
-        sum(end_to_end_seconds) AS end_to_end_seconds_sum,
-        count(end_to_end_seconds) AS end_to_end_eligible_count,
+        sum(order_to_push_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS order_to_push_seconds_sum,
+        count(order_to_push_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS order_to_push_eligible_count,
+        sum(push_to_first_dispatch_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS push_to_first_dispatch_seconds_sum,
+        count(push_to_first_dispatch_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS push_to_first_dispatch_eligible_count,
+        sum(first_dispatch_to_accept_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS first_dispatch_to_accept_seconds_sum,
+        count(first_dispatch_to_accept_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS first_dispatch_to_accept_eligible_count,
+        sum(final_dispatch_to_accept_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS final_dispatch_to_accept_seconds_sum,
+        count(final_dispatch_to_accept_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS final_dispatch_to_accept_eligible_count,
+        sum(accept_to_fetch_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS accept_to_fetch_seconds_sum,
+        count(accept_to_fetch_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS accept_to_fetch_eligible_count,
+        sum(fetch_to_arrive_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS fetch_to_arrive_seconds_sum,
+        count(fetch_to_arrive_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS fetch_to_arrive_eligible_count,
+        sum(end_to_end_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS end_to_end_seconds_sum,
+        count(end_to_end_seconds) FILTER (WHERE NOT has_event_order_error)
+            AS end_to_end_eligible_count,
         sum(pickup_delay_seconds) FILTER (WHERE estimate_meal_prepare_time > 0)
             AS pickup_delay_seconds_sum,
         count(pickup_delay_seconds) FILTER (WHERE estimate_meal_prepare_time > 0)
@@ -35,16 +50,15 @@ WITH order_daily AS (
         sum(delivery_distance_coordinate_units) AS delivery_distance_sum,
         count(delivery_distance_coordinate_units) AS delivery_distance_eligible_count
     FROM fact.fact_order_fulfillment
-    WHERE NOT has_event_order_error
     GROUP BY dt
 ),
 waybill_daily AS (
     SELECT
         dt,
         count(*) AS waybill_attempt_count,
+        count(*) FILTER (WHERE has_event_order_error) AS quality_excluded_waybill_count,
         count(*) FILTER (WHERE is_courier_grabbed = 1) AS accepted_waybill_count
     FROM fact.fact_waybill_attempt
-    WHERE NOT has_event_order_error
     GROUP BY dt
 ),
 wave_daily AS (
@@ -58,12 +72,12 @@ wave_daily AS (
     FROM fact.fact_courier_wave
     WHERE NOT has_member_parse_error
       AND NOT has_member_coverage_error
-      AND wave_duration_seconds IS NOT NULL
     GROUP BY dt
 )
 SELECT
     o.*,
     w.waybill_attempt_count,
+    w.quality_excluded_waybill_count,
     w.accepted_waybill_count,
     v.wave_count,
     v.wave_duration_seconds_sum,
@@ -116,6 +130,7 @@ CREATE OR REPLACE TABLE metrics.overall_fulfillment AS
 WITH totals AS (
     SELECT
         sum(order_count) AS order_count,
+        sum(quality_excluded_order_count) AS quality_excluded_order_count,
         sum(completed_order_count) AS completed_order_count,
         sum(first_attempt_success_order_count) AS first_attempt_success_order_count,
         sum(attempt_count_sum) AS attempt_count_sum,
@@ -141,6 +156,7 @@ WITH totals AS (
         sum(delivery_distance_sum) AS delivery_distance_sum,
         sum(delivery_distance_eligible_count) AS delivery_distance_eligible_count,
         sum(waybill_attempt_count) AS waybill_attempt_count,
+        sum(quality_excluded_waybill_count) AS quality_excluded_waybill_count,
         sum(accepted_waybill_count) AS accepted_waybill_count,
         sum(wave_count) AS wave_count,
         sum(wave_duration_seconds_sum) AS wave_duration_seconds_sum,

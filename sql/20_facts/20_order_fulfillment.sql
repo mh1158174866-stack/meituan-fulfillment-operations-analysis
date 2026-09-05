@@ -3,6 +3,7 @@ WITH accepted AS (
     SELECT *
     FROM stg.waybill_attempt
     WHERE is_courier_grabbed = 1
+      AND is_final_accepted_attempt
 ),
 attempt_rollup AS (
     SELECT
@@ -51,6 +52,7 @@ SELECT
     r.redispatch_count,
     true AS is_accepted,
     (a.arrive_time > 0) AS is_completed,
+    a.has_missing_dispatch_time,
     a.is_incomplete_accepted,
     (r.has_dt_inconsistency OR r.has_prebook_inconsistency OR r.has_order_time_inconsistency)
         AS has_cross_waybill_attribute_inconsistency,
